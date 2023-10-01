@@ -1,0 +1,188 @@
+【pip源】
+-i https://pypi.doubanio.com/simple
+-i https://pypi.douban.com/simple
+
+
+【torch学习官方文档】
+https://pytorch.org/docs/stable/index.html
+
+
+【三种平台优势】
+py文件:代码以块整体运行，便于改错
+
+控制台:以行为单位运行，可以看到中间变量属性，一般用于调试(shift+回车也可多行)
+
+jupyter(jupyter notebook):可多行运行，介于上面两者之间
+使用help(Dataset)或者Dataset??查看帮助清晰
+
+
+【图片获取与显示两种方式】
+import cv2 (ndarray)
+显示方法：
+cv2.imshow()
+cv2.waitkey(0)
+cv2.destroyallwindow()
+
+from PIL import Image (JpegimageFile)
+
+
+【torch help】
+dir(torch)
+dir(torch.cuda)
+dir(torch.cuda.is_available)
+help(torch.cuda.is_available)
+
+
+【Dataset】获取数据及label
+数据组织形式：1.文件夹分类ants和beers	2.数据和label分开写	3.以label命名数据
+【Dataset类的使用】
+class MyData(Dataset):
+
+    def __init__(self, root_dir, label_dir):
+        self.root_dir = root_dir
+        self.label_dir = label_dir
+        self.path=os.path.join(self.root_dir, self.label_dir)
+        self.img_path = os.listdir(self.path)
+
+    def __getitem__(self, idx):
+        img_name = self.img_path[idx]
+        img_item_path = os.path.join(self.root_dir, self.label_dir, img_name)
+        img = Image.open(img_item_path)
+        label = self.label_dir
+        return img, label
+
+    def __len__(self):
+        return len(self.img_path)
+
+
+【tensorboard的使用】
+from torch.utils.tensorboard import SummaryWriter
+writer = SummaryWriter("logs")
+//画图
+for i in range(100):
+    writer.add_scalar("y=2x",2*i,i)
+//显示图片，格式要求为tensor,array,string
+writer.add_image("test",img_array,1,dataformats="HWC")
+writer.close()
+
+查看方式tensorboard --logdir=xxx
+
+
+【transforms】使用时多看官方文档，多看输入输出
+from torchvision import transforms
+//图像转tensor
+trans_tool = transforms.ToTensor()
+img_tensor = trans_tool(img)
+//正则化
+trans_norm = transforms.Normalize([1, 2, 5], [3, 1, 4])
+img_norm = trans_norm(img_tensor)
+//Resize
+trans_resize = transforms.Resize((512,512))
+img_resize = trans_resize(img)
+//随即裁剪
+trans_random = transforms.RandomCrop(512)
+//混合变化
+trans_compose = transforms.Compose([trans_tool,trans_norm,trans_resize])
+
+
+【torchvision的官方数据集使用】
+import torchvision
+from torchvision import transforms
+//图像变换
+dataset_trans = transforms.Compose([transforms.ToTensor()])
+//数据集创建
+train_set = torchvision.datasets.CIFAR10(root="./dataset", train=True, transform=dataset_trans, download=True)
+test_set = torchvision.datasets.CIFAR10(root="./dataset", train=False, transform=dataset_trans, download=False)
+
+
+【dataloader的使用】
+import torchvision
+from torch.utils.data import DataLoader
+dataset=torchvision.datasets.CIFAR10(root="./dataset", train=False, download=True, transform=torchvision.transforms.ToTensor())
+//常用参数
+batch_size一次个数    shuffle随机    num_workers多进程    drop_last舍弃
+test_loader = DataLoader(dataset=dataset, batch_size=64, shuffle=True, num_workers=0, drop_last=True)
+
+for data in test_loader:
+    imgs, targets = data
+    ...
+    step = step + 1
+
+【模型搭建与训练torch.nn】
+import torch
+from torch import  nn
+from torch.nn import Conv2d, MaxPool2d, Flatten, Linear, Sequential
+from torch.utils.tensorboard import SummaryWriter
+
+class Cifar_net(nn.Module):
+    def __init__(self):
+        super(Cifar_net, self).__init__()
+
+        self.model1 = Sequential(
+            Conv2d(3, 32, 5, padding=2),
+            MaxPool2d(2),
+            Conv2d(32, 32, 5, padding=2),
+            MaxPool2d(2),
+            Conv2d(32, 64, 5, padding=2),
+            MaxPool2d(2),
+            Flatten(),
+            Linear(1024, 64),
+            Linear(64, 10)
+        )
+
+    def forward(self, x):
+        x = self.model1(x)
+        return x
+
+my_net = Cifar_net()
+loss_layer = CrossEntropyLoss()
+optim = torch.optim.SGD(my_net.parameters(), lr=0.01)
+
+for epoch in range(20):
+    running_loss = 0.0
+    for data in dataloader:
+        imgs, targets = data
+        outputs = my_net(imgs)
+        loss = loss_layer(outputs, targets)
+        running_loss = running_loss + loss
+        optim.zero_grad()
+        loss.backward()
+        optim.step()
+    print(running_loss)
+
+//模型显示
+writer = SummaryWriter("logs_seq")
+writer.add_graph(my_net, x)
+writer.close()
+
+
+//转移到GPU计算，对网络模型、数据、损失函数使用
+.cuda()
+
+device = torch.device("cuda")
+net.to(device)
+imgs = imgs.to(device)
+
+
+【现有模型的加载与修改】
+vgg16_false = torchvision.models.vgg16(pretrained=False)
+vgg16_false.add_module("add_linear", nn.Linear(1000, 10))
+vgg16_false.classifier.add_module("hhh", nn.Conv2d(10,30,3))
+vgg16_false.classifier[6] = nn.Linear(20, 10)
+
+
+
+【模型保存与加载】
+//保留结构及参数
+torch.save(vgg16_false, "models/vgg16_1.pth")
+vgg = torch.load("models/vgg16_1.pth")
+
+//只保留参数(更常用)
+torch.save(vgg16_false.state_dict(), "models/vgg16_1.pth")
+
+vgg = torchvision.models.vgg16(pretrained=False)
+vgg.load_state_dict(torch.load("models/vgg16_raw.pth"))
+
+
+
+
